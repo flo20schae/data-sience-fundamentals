@@ -1,3 +1,4 @@
+Task 2:
 1. Which packages are available for ML? Describe the pros and cons and document the availability
 Scikit-learn: 
 Pros:
@@ -87,3 +88,19 @@ It has numerous applications in different fields such as image and speech recogn
 10.What are some resources and tools available to help you learn and practice machine learning?
 •	online courses, books, online communities, libraries and frameworks, online competitions, publicly available datasets, online tutorials, and blogs. 
 •	These resources can provide individuals with the knowledge and practical experience needed to become proficient in machine learning.
+
+Task 3
+1. What is in the training set, how big is it?
+  
+  179827 entries x 5 columns
+  
+2. What modifications do you need to do to the data set to perform the tutorial.
+  IC50 values --> pIC50 values
+  Incorporation of target ID 
+  Drop uniportant columns
+  
+3. What is a test set? Any other types of set?
+
+4. Before starting describe with 1-2 sentences, in your own words, what is done in each 
+of the cells.
+--> see in "Midterm_project_with_documentation"
