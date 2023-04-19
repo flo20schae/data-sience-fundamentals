@@ -1,0 +1,253 @@
+the only changes made to the python code was the path of the kinase.csv file, which was previously uploaded to UBELIX using Filezilla. 
+Also, the !pip rdkit-pypi was removed from the code used in google.colab.
+In FileZilla, the kinase.csv file could simple be dragged from the local computer to the UBELIX directory.
+
+In the submission script, conda was used to prevent circular imports of the kerase module. However, this did not work after all.
+Tensorflow and the other modules were imported the following way: conda install -c anaconda tensorflow ; conda install pandas; etc...
+
+
+------- python code-------
+from pathlib import Path
+
+from warnings import filterwarnings
+
+
+# Silence some expected warnings
+filterwarnings("ignore")
+import os.path
+import os
+import pandas as pd
+import numpy as np
+from rdkit import Chem
+from rdkit.Chem import MACCSkeys, Draw
+from rdkit.Chem.AllChem import GetMorganFingerprintAsBitVect
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+from sklearn import metrics
+import seaborn as sns
+
+# Neural network specific libraries
+from tensorflow.keras.models import Sequential#, load_model
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.callbacks import ModelCheckpoint
+import pandas as pd
+
+path = '/storage/homefs/sr20v085/midterm_23/kinase.csv'
+
+df = pd.read_csv(path, delimiter=',', index_col=0)
+df = df.reset_index(drop=True)
+
+
+###
+
+# Set path to this notebook
+colab_path =  '/storage/homefs/sr20v085/midterm_23/kinase.csv'
+notebook_path = os.path.abspath(os.getcwd())
+full_path = os.path.join(notebook_path, colab_path[1:])
+
+DATA = Path(full_path) / "data"
+
+
+###
+
+# Keep necessary columns (activity in nano Molar and smiles)
+chembl_df = df[["standard_value", "smiles"]]
+
+###
+
+def smiles_to_fp(smiles, method="maccs", n_bits=2048):
+    """
+    Encode a molecule from a SMILES string into a fingerprint.
+
+    Parameters
+    ----------
+    smiles : str
+        The SMILES string defining the molecule.
+
+    method : str
+        The type of fingerprint to use. Default is MACCS keys.
+
+    n_bits : int
+        The length of the fingerprint.
+
+    Returns
+    -------
+    array
+        The fingerprint array.
+    """
+
+    # Convert smiles to RDKit mol object
+    mol = Chem.MolFromSmiles(smiles)
+
+    if method == "maccs":
+        return np.array(MACCSkeys.GenMACCSKeys(mol))
+    if method == "morgan2":
+        return np.array(GetMorganFingerprintAsBitVect(mol, 2, nBits=n_bits))
+    if method == "morgan3":
+        return np.array(GetMorganFingerprintAsBitVect(mol, 3, nBits=n_bits))
+    else:
+        print(f"Warning: Wrong method specified: {method}." " Default will be used instead.")
+        return np.array(MACCSkeys.GenMACCSKeys(mol))
+
+###
+
+# smiles was re-named to fingerprints_df and converted to binary code
+chembl_df["fingerprints_df"] = chembl_df["smiles"].apply(smiles_to_fp)
+
+###
+
+# Split the data into training and test set
+x_train, x_test, y_train, y_test = train_test_split(
+    chembl_df["fingerprints_df"], chembl_df[["standard_value"]], test_size=0.3, random_state=42
+
+)
+
+###
+
+def neural_network_model(hidden1, hidden2):
+    """
+    Creating a neural network from two hidden layers
+    using ReLU as activation function in the two hidden layers
+    and a linear activation in the output layer.
+
+    Parameters
+    ----------
+    hidden1 : int
+        Number of neurons in first hidden layer.
+
+    hidden2: int
+        Number of neurons in second hidden layer.
+
+    Returns
+    -------
+    model
+        Fully connected neural network model with two hidden layers.
+    """
+
+    model = Sequential()
+    # First hidden layer
+    model.add(Dense(hidden1, activation="relu", name="layer1"))
+    # Second hidden layer
+    model.add(Dense(hidden2, activation="relu", name="layer2"))
+    # Output layer
+    model.add(Dense(1, activation="linear", name="layer3"))
+
+    # Compile model
+    model.compile(loss="mean_squared_error", optimizer="adam", metrics=["mse", "mae"])
+    return model
+
+###
+
+# Neural network parameters
+batch_sizes = [4000] # they had a batch size that was 0.4% of the total data points, hence the 720
+nb_epoch = 50
+layer1_size = 12000
+layer2_size = 6000
+
+###
+
+# Plot
+fig = plt.figure(figsize=(12, 6))
+sns.set(color_codes=True)
+for index, batch in enumerate(batch_sizes):
+    fig.add_subplot(1, len(batch_sizes), index + 1)
+    model = neural_network_model(layer1_size, layer2_size)
+
+    # Fit model on x_train, y_train data
+    history = model.fit(
+        np.array(list((x_train))).astype(float),
+        y_train.values,
+        batch_size=batch,
+        validation_data=(np.array(list((x_test))).astype(float), y_test.values),
+        verbose=0,
+        epochs=nb_epoch,
+    )
+    plt.plot(history.history["loss"], label="train")
+    plt.plot(history.history["val_loss"], label="test")
+    plt.legend(["train", "test"], loc="upper right")
+    plt.ylabel("loss")
+    plt.xlabel("epoch")
+    #plt.ylim((0, 15))
+    plt.title(
+        f"test loss = {history.history['val_loss'][nb_epoch-1]:.2f}, " f"batch size = {batch}"
+    )
+plt.show()
+
+###
+
+# Save the trained model
+filepath = DATA / "best_weights.hdf5"
+checkpoint = ModelCheckpoint(
+    str(filepath),
+    monitor="loss",
+    verbose=0,
+    save_best_only=True,
+    mode="min",
+    save_weights_only=True,
+)
+callbacks_list = [checkpoint]
+
+# Fit the model
+model.fit(
+    np.array(list((x_train))).astype(float),
+    y_train.values,
+    epochs=nb_epoch,
+    batch_size=16,
+    callbacks=callbacks_list,
+    verbose=0,
+)
+
+###
+
+# Evalute the model
+print(f"Evaluate the model on the test data")
+scores = model.evaluate(np.array(list((x_test))), y_test.values, verbose=0)
+print(f" loss: {scores[0]:.2f}")
+print(f" mse (same as loss): {scores[1]:.2f}")
+print(f" mae: {scores[2]:.2f}")
+
+###
+
+# Predict standard_values on x_test data
+y_pred = model.predict(np.array(list((x_test))))
+
+# Print 5 first pIC50 predicted values
+first_5_prediction = [print(f"{value[0]:.2f}") for value in y_pred[0:5]]
+
+###
+# Scatter plot
+limits = 0, 15
+fig, ax = plt.subplots()
+ax.scatter(y_pred, y_test, marker=".")
+lin = np.linspace(*limits, 100)
+ax.plot(lin, lin)
+ax.set_aspect("equal", adjustable="box")
+ax.set_xlabel("Predicted values")
+ax.set_ylabel("True values")
+ax.set_title("Scatter plot: standard_values")
+ax.set_xlim(limits)
+ax.set_ylim(limits)
+plt.show()
+
+
+-------------submission script---------------
+
+#!/bin/bash
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=1GB
+
+# Put your code below this line
+module load Workspace_Home
+module load Anaconda3
+eval "$(conda shell.bash hook)"
+mkdir -p $SCRATCH/new_dir
+cd $SCRATCH/new_dir
+cp $HOME/code.py $SCRATCH/test
+
+conda activate midterm
+conda list
+
+python code.py
+
+cp $SCRATCH/new_dir $HOME
