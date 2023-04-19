@@ -91,15 +91,17 @@ It has numerous applications in different fields such as image and speech recogn
 
 Task 3
 1. What is in the training set, how big is it?
-  
+  molecule_chembl_id, standard_value, standard_units, target_chembl_id, smiles
   179827 entries x 5 columns
   
 2. What modifications do you need to do to the data set to perform the tutorial.
   IC50 values --> pIC50 values
   Incorporation of target ID 
-  Drop uniportant columns
+  Drop unimportant columns
   
 3. What is a test set? Any other types of set?
+A test set is a subset of data used to evaluate the performance of a trained machine learning model. 
+Other types of sets used in machine learning include training, validation, cross-validation, development, and unlabeled sets.
 
 4. Before starting describe with 1-2 sentences, in your own words, what is done in each 
 of the cells.
